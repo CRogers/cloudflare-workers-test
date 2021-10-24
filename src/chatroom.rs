@@ -28,26 +28,27 @@ impl DurableObject for Chatroom {
 
     async fn fetch(&mut self, mut req: Request) -> worker::Result<Response> {
         self.number_of_requests += 1;
-        match req.method() {
-            Method::Get => match req.path().as_str() {
-                "/messages" => Response::ok(&format!(
-                    "{} messages, {} requests:\n\n{}",
-                    self.messages.len(),
-                    self.number_of_requests,
-                    self.messages.join("\n")
-                )),
-                other => Response::error(&format!("Unsupported path {}", other), 400),
-            },
-            Method::Post => match req.path().as_str() {
-                "/message" => {
-                    let message = req.text().await?;
-                    let response_message = &format!("Added message: {}", &message);
-                    self.messages.push(message);
-                    Response::ok(response_message)
-                }
-                other => Response::error("bleh", 400),
-            },
-            other => Response::error(&format!("Unsupported method {}", other.to_string()), 400),
+        match (req.method(), req.path().as_str()) {
+            (Method::Get, "/messages") => Response::ok(&format!(
+                "{} messages, {} requests:\n\n{}",
+                self.messages.len(),
+                self.number_of_requests,
+                self.messages.join("\n")
+            )),
+            (Method::Post, "/message") => {
+                let message = req.text().await?;
+                let response_message = &format!("Added message: {}", &message);
+                self.messages.push(message);
+                Response::ok(response_message)
+            }
+            (method, path) => Response::error(
+                &format!(
+                    "Unsupported method '{}' and/or path '{}'",
+                    method.to_string(),
+                    path
+                ),
+                400,
+            ),
         }
     }
 }
