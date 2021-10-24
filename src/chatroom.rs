@@ -40,7 +40,7 @@ impl DurableObject for Chatroom {
             },
             Method::Post => match req.path().as_str() {
                 "/message" => {
-                    let message = str::from_utf8(&req.bytes().await?).unwrap().to_owned();
+                    let message = req.text().await?;
                     let response_message = &format!("Added message: {}", &message);
                     self.messages.push(message);
                     Response::ok(response_message)

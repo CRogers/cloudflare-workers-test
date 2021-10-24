@@ -20,35 +20,29 @@ pub async fn main(original_req: Request, env: Env) -> Result<Response> {
     // functionality and a `RouteContext` which you can use to  and get route parameters and
     // Environment bindings like KV Stores, Durable Objects, Secrets, and Variables.
     router
-        .on_async("/", |_req, ctx| async move {
-            chatroom(ctx)?.fetch_with_str("/messages").await
-        })
-        .post_async("/message", |req, ctx| async move {
-            chatroom(ctx)?.fetch_with_request(req).await
-        })
-        .post_async("/form/:field", |mut req, ctx| async move {
-            if let Some(name) = ctx.param("field") {
-                let form = req.form_data().await?;
-                return match form.get(name) {
-                    Some(FormEntry::Field(value)) => Response::from_json(&json!({ name: value })),
-                    Some(FormEntry::File(_)) => {
-                        Response::error("`field` param in form shouldn't be a File", 422)
-                    }
-                    None => Response::error("Bad Request", 400),
-                };
-            }
-
-            Response::error("Bad Request", 400)
-        })
         .get("/worker-version", |_, ctx| {
             let version = ctx.var("WORKERS_RS_VERSION")?.to_string();
             Response::ok(version)
+        })
+        .on_async("/chat/*any", |req, ctx| async move {
+            chatroom(&ctx)?
+                .fetch_with_request(Request::new_with_init(
+                    &ctx.param("any").unwrap(),
+                    &RequestInit {
+                        body: req.inner().body().map(|body| body.into()),
+                        headers: req.headers().to_owned(),
+                        cf: Default::default(),
+                        method: req.method(),
+                        redirect: Default::default(),
+                    },
+                )?)
+                .await
         })
         .run(original_req, env)
         .await
 }
 
-fn chatroom(ctx: RouteContext<()>) -> Result<Stub> {
+fn chatroom(ctx: &RouteContext<()>) -> Result<Stub> {
     let namespace = ctx.durable_object("CHATROOM")?;
     let stub = namespace.id_from_name("A")?.get_stub()?;
     Ok(stub)
